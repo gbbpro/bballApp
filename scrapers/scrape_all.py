@@ -131,7 +131,7 @@ def scrape_ref_assignments():
 # ── main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     scrape_defense(duration="14", filename="defense_14d.csv")
-    scrape_defense(duration="0",  filename="defense_season.csv")
+    scrape_defense(duration="1",  filename="defense_season.csv")
     scrape_all_bball_ref()
     scrape_teamrankings()
     scrape_ref_stats()
