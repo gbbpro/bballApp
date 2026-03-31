@@ -2,27 +2,29 @@ name: Daily NBA Data Refresh
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 9am ET (UTC-5) every day
-  workflow_dispatch:         # also lets you trigger manually from GitHub UI
+    - cron: "0 14 * * *"
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Run scrapers
         run: python scrapers/scrape_all.py
-        
+
       - name: Commit updated data files
         run: |
           git config user.name  "github-actions[bot]"
