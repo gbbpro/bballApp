@@ -1,0 +1,8 @@
+streamlit>=1.35
+pandas>=2.0
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0          # required by pd.read_html
+html5lib>=1.1      # fallback parser for pd.read_html
+curl_cffi>=0.6     # for NBA official referee assignments
+nba_api>=1.4       # optional: for player game logs
