@@ -99,7 +99,7 @@ def get_def_reb():   return load_csv("def_rebounds.csv")
 def get_off_reb():   return load_csv("off_rebounds.csv")
 
 # ── team name normalisation ───────────────────────────────────────────────────
-# Maps bball-ref abbreviations → Team Rankings display names
+# bball-ref abbrev → full team name (for Team Rankings lookups)
 TEAM_MAP = {
     "ATL":"Atlanta Hawks","BOS":"Boston Celtics","BRK":"Brooklyn Nets",
     "CHO":"Charlotte Hornets","CHI":"Chicago Bulls","CLE":"Cleveland Cavaliers",
@@ -113,8 +113,15 @@ TEAM_MAP = {
     "TOR":"Toronto Raptors","UTA":"Utah Jazz","WAS":"Washington Wizards",
 }
 
-# Hashtag Basketball uses these position keys
-HASHTAG_POS = {"PG":"PG","SG":"SG","SF":"SF","PF":"PF","C":"C"}
+# bball-ref abbrev → Hashtag Basketball DEF_POS abbreviation (from your doc)
+HASHTAG_MAP = {
+    "ATL":"ATL","BOS":"BOS","BRK":"bkn","CHO":"CHA","CHI":"CHI",
+    "CLE":"CLE","DAL":"DAL","DEN":"DEN","DET":"DET","GSW":"GS",
+    "HOU":"HOU","IND":"IND","LAC":"LAC","LAL":"LAL","MEM":"MEM",
+    "MIA":"MIA","MIL":"MIL","MIN":"MIN","NOP":"NO","NYK":"NY",
+    "OKC":"OKC","ORL":"ORL","PHI":"PHI","PHO":"PHO","POR":"POR",
+    "SAC":"sac","SAS":"sa","TOR":"TOR","UTA":"UTA","WAS":"WAS",
+}
 
 LEAGUE_AVG_PACE   = 98.0   # fallback if data missing
 LEAGUE_AVG_DEF_REB = 0.745
@@ -243,9 +250,12 @@ opponent_full = TEAM_MAP[opponent]
 # ── Step 2: pick player ──────────────────────────────────────────────────────
 st.markdown("### 2 · Select Player")
 
-roster = pg_df[pg_df["Tm"] == player_team]["Player"].tolist()
+team_col = "Tm" if "Tm" in pg_df.columns else "Team" if "Team" in pg_df.columns else None
+if team_col:
+    roster = pg_df[pg_df[team_col] == player_team]["Player"].tolist()
+else:
+    roster = pg_df["Player"].tolist()
 if not roster:
-    # fallback: search all players
     roster = pg_df["Player"].tolist()
 
 col1, col2, col3 = st.columns([3, 1, 1])
@@ -332,19 +342,22 @@ def get_dvp_multiplier(pos, stat, use_14d=True):
     df = def14_df if use_14d else defszn_df
     if df is None:
         return 1.0
-    # Hashtag columns are typically: Team, PTS, FGpct, FTpct, REB, AST, STL, BLK, TO, 3PM
-    # and the value is opponent's avg allowed — divide by league avg
     try:
-        team_col = df.columns[0]
-        opp_row = df[df[team_col].str.contains(opponent_full.split()[-1], case=False, na=False)]
+        hashtag_abbrev = HASHTAG_MAP.get(opponent, "").upper()
+        # Filter by position and team
+        pos_mask  = df["Position"].str.upper() == pos.upper()
+        team_mask = df["Team"].str.upper().str.contains(hashtag_abbrev)
+        opp_row   = df[pos_mask & team_mask]
+        if opp_row.empty:
+            # fallback: team only
+            opp_row = df[team_mask]
         if opp_row.empty:
             return 1.0
-        stat_cols = {c.upper(): c for c in df.columns}
-        key = stat.upper()
-        if key not in stat_cols:
+        val_col = f"{stat.upper()}_VAL"
+        if val_col not in df.columns:
             return 1.0
-        val = float(opp_row.iloc[0][stat_cols[key]])
-        league_avg = float(df[stat_cols[key]].mean())
+        val        = float(opp_row.iloc[0][val_col])
+        league_avg = float(df[val_col].mean())
         return val / league_avg if league_avg > 0 else 1.0
     except:
         return 1.0

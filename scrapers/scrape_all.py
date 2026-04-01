@@ -57,7 +57,41 @@ def scrape_defense(duration="14", filename="defense_14d.csv"):
     }
     r = session.post(url, data=post_data, headers=headers)
     html_chunks = re.findall(r'<table.*?</table>', r.text, re.DOTALL)
-    df = pd.read_html(StringIO(html_chunks[3]))[0]
+    raw = pd.read_html(StringIO(html_chunks[3]))[0]
+
+    # Flatten multi-level columns if present
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw.columns = [' '.join(str(s) for s in col).strip() for col in raw.columns]
+
+    # Each stat cell contains "value rank" e.g. "19.7 21"
+    # We split into separate _VAL and _RNK columns
+    stat_cols = ["PTS", "FG%", "FT%", "3PM", "REB", "AST", "STL", "BLK", "TO"]
+    result = {}
+    pos_team_done = 0
+
+    for col in raw.columns:
+        col_str = str(col)
+        # First two columns are Position and Team
+        if pos_team_done < 2:
+            new_name = "Position" if pos_team_done == 0 else "Team"
+            result[new_name] = raw[col]
+            pos_team_done += 1
+            continue
+
+        # Match stat columns by checking if any stat key appears in col name
+        matched = next((s for s in stat_cols if s in col_str.upper()), None)
+        if matched:
+            split = raw[col].astype(str).str.extract(r'^([\d.]+)\s+(\d+)$')
+            # Avoid duplicate column names by checking
+            val_key = f"{matched}_VAL"
+            rnk_key = f"{matched}_RNK"
+            if val_key not in result:
+                result[val_key] = pd.to_numeric(split[0], errors="coerce")
+                result[rnk_key] = pd.to_numeric(split[1], errors="coerce")
+        else:
+            result[col_str] = raw[col]
+
+    df = pd.DataFrame(result)
     save(df, filename)
 
 
@@ -131,7 +165,7 @@ def scrape_ref_assignments():
 # ── main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     scrape_defense(duration="14", filename="defense_14d.csv")
-    scrape_defense(duration="1",  filename="defense_season.csv")
+    scrape_defense(duration="0",  filename="defense_season.csv")
     scrape_all_bball_ref()
     scrape_teamrankings()
     scrape_ref_stats()
